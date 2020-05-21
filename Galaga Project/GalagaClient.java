@@ -4,17 +4,29 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.PortUnreachableException;
 import java.net.SocketException;
-import java.util.HashMap;
+import java.util.Scanner;
 
 public class GalagaClient {
 
+	private InetAddress serverAddress;
 	private final int PORT_NUMBER;
 	private DatagramSocket mainSocket;
 	private final int MAX_SIZE = 1024; //Might be too much for out current needs
 	private byte[] recieveData;
 	private byte[] sendData;
+	private Scanner scan;
 	
-	//TODO: possibly create some type of optimization for byte array so we aren't wasting too much space in memory
+	/*
+	 * TODO: possibly create some type of optimization for byte array so we aren't wasting too much space in memory
+	 * 	     this can be done by keeping track of the next available spot in the byte[] and checking if the length 
+	 *       of the data being filled plus the available spot is out of bounds. If so, call method that will create
+	 *       a new byte[] and re fill the data in.
+	 */
+	
+	/*
+	 * TODO: Should maybe add datagramPacket headers to signify what is being received (like one that specifies a 
+	 *       connectivity packet, a ship position packet, or a bullet position packet).
+	 */
 	
 	/**
 	 * Constructor that accepts port number
@@ -23,6 +35,7 @@ public class GalagaClient {
 	public GalagaClient(int port) {
 		
 		PORT_NUMBER = port;
+		scan = new Scanner(System.in);
 	}
 	
 	/**
@@ -56,14 +69,14 @@ public class GalagaClient {
 			int available = 0;
 			
 			try {
+				
+				//TODO: possibly send the 'connected' datagram packet here
+				
 				//The 'receive(...)' method fills up the buffer of the packet we passed into it with the data received
 				mainSocket.receive(packet);
-				//available = packet.getLength();
-				String msg = new String(packet.getData(), 0, packet.getLength());
 				
-				if(msg.equals("Connected") && askUser(packet, available))
-					makeClientThread();
-					
+				if
+				sendUserName(new String(packet.getData(), 0, packet.getLength()), packet);						
 			}
 			catch(PortUnreachableException ex) {
 				
@@ -106,40 +119,18 @@ public class GalagaClient {
 	}
 	
 	/**
-	 * This method deactivates the Galaga server
+	 * This method deactivates the Galaga client
 	 */
 	public void close() {
 		mainSocket.close();
-	}
+	}	
 	
-	private boolean askUser(DatagramPacket packet, int available) throws IOException{
-	    
-		String userName = "";
-		boolean response = true;
+	private void sendUserName(String msg, DatagramPacket packet) throws IOException, PortUnreachableException {
 		
-		do {
-			String prompt = "Please enter a username: ";
-			sendData = prompt.getBytes();
-			DatagramPacket userPacket = new DatagramPacket(sendData, sendData.length, packet.getAddress(), packet.getPort());
-			
-			mainSocket.send(userPacket);
-			
-			recieveData = new byte[MAX_SIZE];
-			DatagramPacket vertifyPacket = new DatagramPacket(recieveData, MAX_SIZE);
-				
-			//"This method blocks until a datagram is received."
-			mainSocket.receive(vertifyPacket);
-			userName = new String(vertifyPacket.getData(), 0, vertifyPacket.getLength());
-			//available += packet.getLength();
-					
-			if(!playerData.containsKey(userName)) {
-				playerData.put(userName, vertifyPacket);
-				response = false;
-			}
-			
-		}while(response);		
+		System.out.println(msg);
+		byte[] name = scan.nextLine().getBytes();
+		DatagramPacket userName = new DatagramPacket(name, name.length, packet.getAddress(), packet.getPort());
+		mainSocket.send(userName);
 		
-		return !response;
 	}
-	
 }

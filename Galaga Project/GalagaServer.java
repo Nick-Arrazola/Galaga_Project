@@ -13,24 +13,41 @@ import java.util.Map;
  *
  */
 public class GalagaServer{
-
+	
 	private Map<String, DatagramPacket> playerData; //To store the data of the players who are in the game
+	private final InetAddress serverAddress;
 	private final int PORT_NUMBER;
+	private final int HEADER = 12;
+	private final int CONNECTION = 24;
+	private final int SHIP = 36;
+	private final int BULLETS = 48;
 	private DatagramSocket mainSocket;
 	private final int MAX_SIZE = 1024; //Might be too much for out current needs
 	private byte[] recieveData;
 	private byte[] sendData;
 	
-	//TODO: possibly create some type of optimization for byte array so we aren't wasting too much space in memory
+	/*
+	 * TODO: possibly create some type of optimization for byte array so we aren't wasting too much space in memory
+	 * 	     this can be done by keeping track of the next available spot in the byte[] and checking if the length 
+	 *       of the data being filled plus the available spot is out of bounds. If so, call method that will create
+	 *       a new byte[] and re fill the data in.
+	 */
+	
+	/*
+	 * TODO: Should maybe add datagramPacket headers to signify what is being received (like one that specifies a 
+	 *       connectivity packet, a ship position packet, or a bullet position packet).
+	 */
 	
 	/**
 	 * Constructor that accepts port number
 	 * @param port - port number to be used
-	 */
-	public GalagaServer(int port) {
+	 */	
+	public GalagaServer(InetAddress address, int port) {
 		
 		PORT_NUMBER = port;
+		serverAddress = address; //Maybe deep copy later
 		playerData = new HashMap<String, DatagramPacket>();
+		
 	}
 	
 	/**
@@ -67,10 +84,12 @@ public class GalagaServer{
 				//The 'receive(...)' method fills up the buffer of the packet we passed into it with the data received
 				mainSocket.receive(packet);
 				//available = packet.getLength();
-				String msg = new String(packet.getData(), 0, packet.getLength());
+				byte[] data = packet.getData();
 				
-				if(msg.equals("Connected") && askUser(packet, available))
-					makeClientThread();
+				if(data[0] == HEADER && data[1] == CONNECTION)
+					if(askUser(packet, available))
+						makeClientThread();
+					
 					
 			}
 			catch(PortUnreachableException ex) {
@@ -159,20 +178,23 @@ public class GalagaServer{
 					recieveData = new byte[MAX_SIZE]; //Might cause trouble with multiple threads
 					DatagramPacket recievingPacket = new DatagramPacket(recieveData, MAX_SIZE);
 					mainSocket.receive(recievingPacket);
-					
-					for(String user : playerData.keySet()) {
+					byte[] gameInfo = recievingPacket.getData();
+					boolean packetType = ((gameInfo[0] == HEADER) && (gameInfo[1] == SHIP || gameInfo[1] == BULLETS));
+		
+					if(packetType)
+						for(String user : playerData.keySet()) {
 						
-						DatagramPacket current = playerData.get(user);
+							DatagramPacket current = playerData.get(user);
 						
-						//Comparing if the address that was recently received from is the same as the current address in the hashMap
-						if(current.getAddress().equals(recievingPacket.getAddress())) 
-							continue;
+							//Comparing if the address that was recently received from is the same as the current address in the hashMap
+							if(current.getAddress().equals(recievingPacket.getAddress())) 
+								continue;
 						
-						byte[] sendingData = recievingPacket.getData();
-						DatagramPacket sendingPacket = new DatagramPacket(sendingData, sendingData.length, current.getAddress(), current.getPort());
-						mainSocket.send(sendingPacket);
-					}
-				} 
+							byte[] sendingData = recievingPacket.getData();
+							DatagramPacket sendingPacket = new DatagramPacket(sendingData, sendingData.length, current.getAddress(), current.getPort());
+							mainSocket.send(sendingPacket);
+						}
+				}	 
 				catch (IOException e) {
 					System.out.println("3. IOException Caught in client thread.");
 					e.printStackTrace();
